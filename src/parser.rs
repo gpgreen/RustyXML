@@ -12,11 +12,26 @@
 // Permission to license this derived work under MIT license has been granted by ObjFW's author.
 
 use super::{unescape, EndTag, StartTag};
-use std::collections::{HashMap, VecDeque};
-use std::error::Error;
-use std::fmt;
-use std::iter::Iterator;
-use std::mem;
+
+// alloc
+
+#[cfg(not(feature = "std"))]
+use crate::Error;
+#[cfg(not(feature = "std"))]
+use alloc::{
+    borrow::ToOwned, collections::BTreeMap as Map, collections::VecDeque, fmt, string::String,
+    vec::Vec,
+};
+#[cfg(not(feature = "std"))]
+use core::{iter::Iterator, mem};
+
+// std
+
+#[cfg(feature = "std")]
+use std::{
+    borrow::ToOwned, collections::HashMap as Map, collections::VecDeque, error::Error, fmt,
+    iter::Iterator, mem, string::String, vec, vec::Vec,
+};
 
 #[derive(PartialEq, Eq, Debug)]
 /// Events returned by the `Parser`
@@ -109,7 +124,7 @@ pub struct Parser {
     has_error: bool,
     data: VecDeque<char>,
     buf: String,
-    namespaces: Vec<HashMap<String, String>>,
+    namespaces: Vec<Map<String, String>>,
     attributes: Vec<(String, Option<String>, String)>,
     st: State,
     name: Option<(Option<String>, String)>,
@@ -121,7 +136,7 @@ pub struct Parser {
 impl Parser {
     /// Returns a new `Parser`
     pub fn new() -> Parser {
-        let mut ns = HashMap::with_capacity(2);
+        let mut ns = Map::new();
         // Add standard namespaces
         ns.insert(
             "xml".to_owned(),
@@ -136,7 +151,7 @@ impl Parser {
             line: 1,
             col: 0,
             has_error: false,
-            data: VecDeque::with_capacity(4096),
+            data: VecDeque::new(),
             buf: String::new(),
             namespaces: vec![ns],
             attributes: Vec::new(),
@@ -211,7 +226,7 @@ fn unescape_owned(input: String) -> Result<String, String> {
 
 impl Parser {
     // Get the namespace currently bound to a prefix.
-    // Bindings are stored as a stack of HashMaps, we start searching in the top most HashMap
+    // Bindings are stored as a stack of Maps, we start searching in the top most Map
     // and traverse down until the prefix is found.
     fn namespace_for_prefix(&self, prefix: &str) -> Option<String> {
         for ns in self.namespaces.iter().rev() {
@@ -333,7 +348,7 @@ impl Parser {
                     },
                 };
 
-                self.namespaces.push(HashMap::new());
+                self.namespaces.push(Map::new());
                 self.st = if c == '/' {
                     self.name = Some((prefix.clone(), name.clone()));
                     State::ExpectClose
@@ -345,11 +360,11 @@ impl Parser {
                     name,
                     ns,
                     prefix,
-                    attributes: HashMap::new(),
+                    attributes: Map::new(),
                 })));
             }
             ' ' | '\t' | '\r' | '\n' => {
-                self.namespaces.push(HashMap::new());
+                self.namespaces.push(Map::new());
                 self.name = Some(parse_qname(self.take_buf()));
                 self.st = State::InTag;
             }
@@ -410,7 +425,7 @@ impl Parser {
                     },
                 };
 
-                let mut attributes_map: HashMap<(String, Option<String>), String> = HashMap::new();
+                let mut attributes_map: Map<(String, Option<String>), String> = Map::new();
 
                 // At this point attribute namespaces are really just prefixes,
                 // map them to the actual namespace
@@ -688,10 +703,12 @@ impl Parser {
 
 #[cfg(test)]
 mod parser_tests {
-    use std::collections::HashMap;
-
     use super::super::{EndTag, Event, ParserError, StartTag};
     use super::Parser;
+    #[cfg(not(feature = "std"))]
+    use alloc::{borrow::ToOwned, collections::BTreeMap as Map, string::String, vec::Vec};
+    #[cfg(feature = "std")]
+    use std::{borrow::ToOwned, collections::HashMap as Map, string::String, vec::Vec};
 
     #[test]
     fn test_start_tag() {
@@ -706,7 +723,7 @@ mod parser_tests {
                     name: "a".to_owned(),
                     ns: None,
                     prefix: None,
-                    attributes: HashMap::new()
+                    attributes: Map::new()
                 })),
             );
         }
@@ -745,7 +762,7 @@ mod parser_tests {
                     name: "register".to_owned(),
                     ns: None,
                     prefix: None,
-                    attributes: HashMap::new()
+                    attributes: Map::new()
                 })),
                 Ok(Event::ElementEnd(EndTag {
                     name: "register".to_owned(),
@@ -769,7 +786,7 @@ mod parser_tests {
                     name: "register".to_owned(),
                     ns: None,
                     prefix: None,
-                    attributes: HashMap::new()
+                    attributes: Map::new()
                 })),
                 Ok(Event::ElementEnd(EndTag {
                     name: "register".to_owned(),
@@ -786,7 +803,7 @@ mod parser_tests {
         p.feed_str("<foo:a xmlns:foo='urn:foo'/>");
 
         let v: Vec<Result<Event, ParserError>> = p.collect();
-        let mut attr: HashMap<(String, Option<String>), String> = HashMap::new();
+        let mut attr: Map<(String, Option<String>), String> = Map::new();
         attr.insert(
             (
                 "foo".to_owned(),

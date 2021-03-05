@@ -13,6 +13,7 @@
 #![warn(missing_docs)]
 // Required for benchmarks
 #![cfg_attr(feature = "bench", feature(test))]
+#![no_std]
 
 /*!
  * An XML parsing library
@@ -26,9 +27,26 @@ pub use crate::parser::Event;
 pub use crate::parser::Parser;
 pub use crate::parser::ParserError;
 
-use std::char;
-use std::collections::HashMap;
-use std::fmt;
+// alloc
+
+#[cfg(not(feature = "std"))]
+#[macro_use]
+extern crate alloc;
+#[cfg(not(feature = "std"))]
+use alloc::{borrow::ToOwned, collections::BTreeMap as Map, fmt, fmt::Debug, string::String};
+#[cfg(not(feature = "std"))]
+use core::{char, fmt::Display};
+
+// std
+
+#[cfg(feature = "std")]
+#[macro_use]
+extern crate std;
+#[cfg(feature = "std")]
+use std::{
+    borrow::ToOwned, char, collections::HashMap as Map, fmt, fmt::Debug, fmt::Display,
+    string::String,
+};
 
 mod element;
 mod element_builder;
@@ -99,6 +117,21 @@ pub fn unescape(input: &str) -> Result<String, String> {
     Ok(result)
 }
 
+pub trait Error: Debug + Display {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+    /*    fn backtrace(&self) -> Option<&Backtrace> {
+        None
+    }*/
+    fn description(&self) -> &str {
+        "description() is deprecated; use Display"
+    }
+    fn cause(&self) -> Option<&dyn Error> {
+        self.source()
+    }
+}
+
 // General types
 #[derive(Clone, PartialEq, Debug)]
 /// An Enum describing a XML Node
@@ -125,7 +158,7 @@ pub struct StartTag {
     /// The tag's prefix
     pub prefix: Option<String>,
     /// The tag's attributes
-    pub attributes: HashMap<(String, Option<String>), String>,
+    pub attributes: Map<(String, Option<String>), String>,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -142,7 +175,7 @@ pub struct EndTag {
 impl fmt::Display for Xml {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Xml::ElementNode(ref elem) => elem.fmt(f),
+            Xml::ElementNode(ref elem) => Display::fmt(&elem, f),
             Xml::CharacterNode(ref data) => write!(f, "{}", escape(&data)),
             Xml::CDATANode(ref data) => write!(f, "<![CDATA[{}]]>", &data),
             Xml::CommentNode(ref data) => write!(f, "<!--{}-->", &data),
@@ -154,6 +187,10 @@ impl fmt::Display for Xml {
 #[cfg(test)]
 mod lib_tests {
     use super::{escape, unescape, Element, Xml};
+    #[cfg(not(feature = "std"))]
+    use alloc::borrow::ToOwned;
+    #[cfg(feature = "std")]
+    use std::borrow::ToOwned;
 
     #[test]
     fn test_escape() {
@@ -271,7 +308,7 @@ mod lib_bench {
 
     use self::test::Bencher;
     use super::{escape, unescape};
-    use std::iter::repeat;
+    use super::{iter::repeat, ToOwned};
 
     #[bench]
     fn bench_escape(bh: &mut Bencher) {

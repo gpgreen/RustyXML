@@ -16,3 +16,5 @@ name = "xml"
 
 [features]
 bench = []
+std = []
+default = ["std"]

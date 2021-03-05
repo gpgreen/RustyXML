@@ -9,9 +9,20 @@
 
 use super::{Element, EndTag, Event, StartTag, Xml};
 use crate::parser::ParserError;
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
+
+// alloc
+
+#[cfg(not(feature = "std"))]
+use crate::Error;
+#[cfg(not(feature = "std"))]
+use alloc::{borrow::ToOwned, collections::BTreeMap as Map, fmt, string::String, vec::Vec};
+
+// std
+
+#[cfg(feature = "std")]
+use std::{
+    borrow::ToOwned, collections::HashMap as Map, error::Error, fmt, string::String, vec, vec::Vec,
+};
 
 #[derive(PartialEq, Debug, Clone)]
 /// The structure returned for errors encountered while building an `Element`
@@ -73,13 +84,13 @@ impl From<ParserError> for BuilderError {
 pub struct ElementBuilder {
     stack: Vec<Element>,
     default_ns: Vec<Option<String>>,
-    prefixes: HashMap<String, String>,
+    prefixes: Map<String, String>,
 }
 
 impl ElementBuilder {
     /// Returns a new `ElementBuilder`
     pub fn new() -> ElementBuilder {
-        let mut prefixes = HashMap::with_capacity(2);
+        let mut prefixes = Map::new();
         prefixes.insert(
             "http://www.w3.org/XML/1998/namespace".to_owned(),
             "xml".to_owned(),

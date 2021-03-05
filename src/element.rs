@@ -11,11 +11,22 @@ use crate::element_builder::{BuilderError, ElementBuilder};
 use crate::parser::Parser;
 use crate::{escape, Xml};
 
-use std::collections::HashMap;
-use std::fmt;
-use std::iter::IntoIterator;
-use std::slice;
-use std::str::FromStr;
+// alloc
+
+#[cfg(not(feature = "std"))]
+use alloc::{
+    borrow::ToOwned, collections::BTreeMap as Map, fmt, str::FromStr, string::String, vec::Vec,
+};
+#[cfg(not(feature = "std"))]
+use core::{iter::IntoIterator, slice};
+
+// std
+
+#[cfg(feature = "std")]
+use std::{
+    borrow::ToOwned, collections::HashMap as Map, fmt, iter::IntoIterator, slice, str::FromStr,
+    string::String, vec::Vec,
+};
 
 #[derive(Clone, PartialEq, Debug)]
 /// A struct representing an XML element
@@ -25,11 +36,11 @@ pub struct Element {
     /// The element's namespace
     pub ns: Option<String>,
     /// The element's attributes
-    pub attributes: HashMap<(String, Option<String>), String>,
+    pub attributes: Map<(String, Option<String>), String>,
     /// The element's child `Xml` nodes
     pub children: Vec<Xml>,
     /// The prefixes set for known namespaces
-    pub(crate) prefixes: HashMap<String, String>,
+    pub(crate) prefixes: Map<String, String>,
     /// The element's default namespace
     pub(crate) default_ns: Option<String>,
 }
@@ -37,7 +48,7 @@ pub struct Element {
 fn fmt_elem(
     elem: &Element,
     parent: Option<&Element>,
-    all_prefixes: &HashMap<String, String>,
+    all_prefixes: &Map<String, String>,
     f: &mut fmt::Formatter,
 ) -> fmt::Result {
     let mut all_prefixes = all_prefixes.clone();
@@ -105,7 +116,7 @@ fn fmt_elem(
 
 impl fmt::Display for Element {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt_elem(self, None, &HashMap::new(), f)
+        fmt_elem(self, None, &Map::new(), f)
     }
 }
 
@@ -142,7 +153,7 @@ impl Element {
     where
         A: IntoIterator<Item = (String, Option<String>, String)>,
     {
-        let mut prefixes = HashMap::with_capacity(2);
+        let mut prefixes = Map::new();
         prefixes.insert(
             "http://www.w3.org/XML/1998/namespace".to_owned(),
             "xml".to_owned(),
@@ -152,7 +163,7 @@ impl Element {
             "xmlns".to_owned(),
         );
 
-        let attributes: HashMap<_, _> = attrs
+        let attributes: Map<_, _> = attrs
             .into_iter()
             .map(|(name, ns, value)| ((name, ns), value))
             .collect();
@@ -284,6 +295,11 @@ impl FromStr for Element {
 #[cfg(test)]
 mod tests {
     use super::Element;
+
+    #[cfg(not(feature = "std"))]
+    use alloc::{borrow::ToOwned, vec::Vec};
+    #[cfg(feature = "std")]
+    use std::{borrow::ToOwned, vec::Vec};
 
     #[test]
     fn test_get_children() {
